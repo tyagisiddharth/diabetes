@@ -1,0 +1,66 @@
+from flask import Flask, render_template, request
+import pandas as pd
+from sklearn.preprocessing import StandardScaler
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import accuracy_score
+import joblib
+from sklearn.exceptions import NotFittedError
+import os
+
+app = Flask(__name__, template_folder='C:\\Users\\tyagi\\OneDrive\\Desktop\\project\\app\\templates', static_folder='C:\\Users\\tyagi\\OneDrive\\Desktop\\project\\app\\static')
+
+# Load the trained model
+model_path = 'C:\\Users\\tyagi\\Desktop\\my_model.pkl'
+model = joblib.load(model_path)
+
+# Load the scaler
+scaler_path = 'C:\\Users\\tyagi\\Desktop\\my_scaler.pkl'
+if os.path.exists(scaler_path):
+    scaler = joblib.load(scaler_path)
+    print("Scaler loaded successfully.")
+else:
+    print("Scaler file does not exist at the specified path.")
+    scaler = None
+
+# Load the dataset for calculating accuracy
+file_path = "C:\\Users\\tyagi\\Downloads\\pima-indians-diabetes.csv.csv"
+column_names = ["Pregnancies", "Glucose", "BloodPressure", "SkinThickness", "Insulin", "BMI", "DiabetesPedigreeFunction", "Age", "Outcome"]
+data = pd.read_csv(file_path, skiprows=1, names=column_names)
+X = data.drop("Outcome", axis=1)
+y = data["Outcome"]
+
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+@app.route('/predict', methods=['POST'])
+def predict():
+    try:
+        # Get user input from the form
+        features = [float(request.form.get(f)) for f in ['pregnancies', 'glucose', 'blood_pressure', 'skin_thickness', 'insulin', 'bmi', 'pedigree_function', 'age']]
+
+        # Create a DataFrame with the user input
+        user_data = pd.DataFrame([features], columns=['Pregnancies', 'Glucose', 'BloodPressure', 'SkinThickness', 'Insulin', 'BMI', 'DiabetesPedigreeFunction', 'Age'])
+
+        # Standardize the user input
+        if scaler:
+            user_data = scaler.transform(user_data)
+
+        # Make predictions
+        prediction = model.predict(user_data)
+
+        # Display the prediction
+        result = "Based on the input, it is predicted that the person does not have diabetes." if prediction[0] == 1 else "Based on the input, it is predicted that the person has diabetes."
+
+        # Calculate accuracy on the entire dataset
+        y_pred = model.predict(X)
+        accuracy = accuracy_score(y, y_pred)
+        result += f'(Prediction Accuracy: {accuracy:.2%})'
+
+    except NotFittedError:
+        result = "Model is not fitted. Please train the model before making predictions."
+
+    return render_template('index.html', result=result)
+
+if __name__ == '__main__':
+    app.run(debug=True)
